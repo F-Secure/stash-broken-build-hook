@@ -23,7 +23,7 @@
     
     <!-- publish our component -->
     <repository-hook key="brokenBuildPushHook" name="Reject push on Broken Build"
-                     class="com.risingoak.stash.plugins.hook.BrokenBuildHook">
+                     class="com.risingoak.stash.plugins.hook.RejectPushToDefaultBranchHook">
         <description>Prevent pushes to the default branch if the build is broken (unless the push fixes it)</description>
         <icon>images/pluginLogo.png</icon>
         <!--<config-form name="Enforce Author Hook Config" key="enforceAuthorHook-config">-->
@@ -34,15 +34,15 @@
         <!--<validator>com.atlassian.stash.repository.hook.ref.RefValidator</validator>-->
     </repository-hook>
     <repository-hook key="brokenBuildMergeHook" name="Reject merge on Broken Build"
-                     class="com.risingoak.stash.plugins.hook.MergeRequestBlockHook">
+                     class="com.risingoak.stash.plugins.hook.RejectMergePullRequestToDefaultBranchHook">
         <description>Prevent merging from pull request to the default branch if the build is broken</description>
         <icon>images/pluginLogo.png</icon>
     </repository-hook>
 
     <!-- import from the product container -->
     <component-import key="applicationProperties" interface="com.atlassian.sal.api.ApplicationProperties" />
-    <component-import key="repositoryMetadataServer" interface="com.atlassian.stash.repository.RepositoryMetadataService" />
-    <component-import key="buildStatusService" interface="com.atlassian.stash.build.BuildStatusService" />
-    <component-import key="historyService" interface="com.atlassian.stash.history.HistoryService" />
+    <component-import key="refService" interface="com.atlassian.bitbucket.repository.RefService" />
+    <component-import key="buildStatusService" interface="com.atlassian.bitbucket.build.BuildStatusService" />
+    <component-import key="commitService" interface="com.atlassian.bitbucket.commit.CommitService" />
     
 </atlassian-plugin>

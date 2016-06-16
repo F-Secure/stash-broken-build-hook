@@ -1,83 +1,86 @@
 package com.risingoak.stash.plugins.hook;
 
 
-import com.atlassian.stash.build.BuildStatus;
-import com.atlassian.stash.build.BuildStatusService;
-import com.atlassian.stash.content.Changeset;
-import com.atlassian.stash.history.HistoryService;
-import com.atlassian.stash.repository.RepositoryMetadataService;
-import com.atlassian.stash.util.Page;
+import com.atlassian.bitbucket.build.BuildState;
+import com.atlassian.bitbucket.build.BuildStatus;
+import com.atlassian.bitbucket.build.BuildStatusService;
+import com.atlassian.bitbucket.commit.Commit;
+import com.atlassian.bitbucket.commit.CommitService;
+import com.atlassian.bitbucket.repository.RefService;
+import com.atlassian.bitbucket.util.Page;
 
 public class AbstractRejectHook {
-    public static final int COMMITS_TO_INSPECT = 10;
-    protected RepositoryMetadataService repositoryMetadataService;
-    protected BuildStatusService buildStatusService;
-    protected HistoryService historyService;
 
-    public AbstractRejectHook(RepositoryMetadataService repositoryMetadataService, HistoryService historyService, BuildStatusService buildStatusService) {
-        this.repositoryMetadataService = repositoryMetadataService;
-        this.historyService = historyService;
+    public static final int COMMITS_TO_INSPECT = 10;
+
+    protected RefService refService;
+    protected BuildStatusService buildStatusService;
+    protected CommitService commitService;
+
+    public AbstractRejectHook(RefService refService, CommitService commitService, BuildStatusService buildStatusService) {
+        this.refService = refService;
+        this.commitService = commitService;
         this.buildStatusService = buildStatusService;
     }
 
-    protected BuildState getAggregatedStatus(String theHash) {
+    protected BuildState0 getAggregatedStatus(String theHash) {
         boolean hasPending = false;
         boolean hasSuccess = false;
         for (BuildStatus status : buildStatusService.findAll(theHash).getValues()) {
-            if (BuildStatus.State.FAILED == status.getState()) {
-                return BuildState.FAILED;
-            } else if (status.getState() == BuildStatus.State.INPROGRESS) {
+            if (BuildState.FAILED == status.getState()) {
+                return BuildState0.FAILED;
+            } else if (status.getState() == BuildState.INPROGRESS) {
                 hasPending = true;
-            } else if (status.getState() == BuildStatus.State.SUCCESSFUL) {
+            } else if (status.getState() == BuildState.SUCCESSFUL) {
                 hasSuccess = true;
             }
         }
 
         if (hasPending) {
-            return BuildState.INPROGRESS;
+            return BuildState0.INPROGRESS;
         }
         if (hasSuccess) {
-            return BuildState.SUCCESSFUL;
+            return BuildState0.SUCCESSFUL;
         }
-        return BuildState.UNDEFINED;
+        return BuildState0.UNDEFINED;
     }
 
-    protected BranchState getAggregatedStatus(Page<Changeset> changesets) {
+    protected BranchState getAggregatedStatus(Page<Commit> commits) {
         boolean hasPending = false;
-        for (Changeset changeset : changesets.getValues()) {
-            BuildState aggregatedStatus = getAggregatedStatus(changeset.getId());
+        for (Commit commit : commits.getValues()) {
+            BuildState0 aggregatedStatus = getAggregatedStatus(commit.getId());
             switch (aggregatedStatus) {
                 case UNDEFINED:
                     continue;
                 case SUCCESSFUL:
-                    return new BranchState(BuildState.SUCCESSFUL);
+                    return new BranchState(BuildState0.SUCCESSFUL);
                 case FAILED:
-                    return new BranchState(BuildState.FAILED, changeset.getDisplayId());
+                    return new BranchState(BuildState0.FAILED, commit.getDisplayId());
                 case INPROGRESS:
                     hasPending = true;
                     break;
             }
         }
         if (hasPending) {
-            return new BranchState(BuildState.INPROGRESS);
+            return new BranchState(BuildState0.INPROGRESS);
         }
-        return new BranchState(BuildState.UNDEFINED);
+        return new BranchState(BuildState0.UNDEFINED);
     }
 
     protected static class BranchState {
-        protected final BuildState state;
+        protected final BuildState0 state;
         protected final String commit;
 
-        public BranchState(BuildState state) {
+        public BranchState(BuildState0 state) {
             this.state = state;
             this.commit = null;
         }
 
-        public BranchState(BuildState state, String commit) {
+        public BranchState(BuildState0 state, String commit) {
             this.state = state;
             this.commit = commit;
         }
     }
 
-    public static enum BuildState {UNDEFINED, SUCCESSFUL, FAILED, INPROGRESS}
+    public enum BuildState0 {UNDEFINED, SUCCESSFUL, FAILED, INPROGRESS}
 }

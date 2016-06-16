@@ -1,24 +1,27 @@
 package com.risingoak.stash.plugins.hook;
 
-import com.atlassian.stash.build.BuildStatusService;
-import com.atlassian.stash.content.Changeset;
-import com.atlassian.stash.history.HistoryService;
-import com.atlassian.stash.hook.HookResponse;
-import com.atlassian.stash.hook.repository.PreReceiveRepositoryHook;
-import com.atlassian.stash.hook.repository.RepositoryHookContext;
-import com.atlassian.stash.repository.Branch;
-import com.atlassian.stash.repository.RefChange;
-import com.atlassian.stash.repository.Repository;
-import com.atlassian.stash.repository.RepositoryMetadataService;
-import com.atlassian.stash.util.Page;
-import com.atlassian.stash.util.PageRequestImpl;
+import com.atlassian.bitbucket.build.BuildStatusService;
+import com.atlassian.bitbucket.commit.Commit;
+import com.atlassian.bitbucket.commit.CommitRequest;
+import com.atlassian.bitbucket.commit.CommitService;
+import com.atlassian.bitbucket.commit.CommitsRequest;
+import com.atlassian.bitbucket.hook.HookResponse;
+import com.atlassian.bitbucket.hook.repository.PreReceiveRepositoryHook;
+import com.atlassian.bitbucket.hook.repository.RepositoryHookContext;
+import com.atlassian.bitbucket.repository.Branch;
+import com.atlassian.bitbucket.repository.RefChange;
+import com.atlassian.bitbucket.repository.RefService;
+import com.atlassian.bitbucket.repository.Repository;
+import com.atlassian.bitbucket.util.Page;
+import com.atlassian.bitbucket.util.PageRequestImpl;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
 
-public class BrokenBuildHook extends AbstractRejectHook implements PreReceiveRepositoryHook {
-    public BrokenBuildHook(RepositoryMetadataService repositoryMetadataService, BuildStatusService buildStatusService, HistoryService historyService) {
-        super(repositoryMetadataService, historyService, buildStatusService);
+public class RejectPushToDefaultBranchHook extends AbstractRejectHook implements PreReceiveRepositoryHook {
+
+    public RejectPushToDefaultBranchHook(RefService refService, BuildStatusService buildStatusService, CommitService commitService) {
+        super(refService, commitService, buildStatusService);
     }
 
     @Override
@@ -31,16 +34,16 @@ public class BrokenBuildHook extends AbstractRejectHook implements PreReceiveRep
         String toHash = push.getToHash();
 
         // if for some reason we happen to have seen the status of the commit
-        BuildState justPushedStatus = getAggregatedStatus(toHash);
-        if (justPushedStatus == BuildState.SUCCESSFUL) {
+        BuildState0 justPushedStatus = getAggregatedStatus(toHash);
+        if (justPushedStatus == BuildState0.SUCCESSFUL) {
             return true;
-        } else if (justPushedStatus == BuildState.FAILED) {
+        } else if (justPushedStatus == BuildState0.FAILED) {
             printPushingCommitWithFailedStatusMsg(hookResponse, toHash);
             return false;
         }
 
         Repository repository = repositoryHookContext.getRepository();
-        BranchState defaultBranchState = getAggregatedStatus(getChangesets(repository, push.getFromHash()));
+        BranchState defaultBranchState = getAggregatedStatus(getCommits(repository, push.getFromHash()));
         switch (defaultBranchState.state) {
             case INPROGRESS:
                 printTooManyPendingBuilds(hookResponse, push);
@@ -62,13 +65,16 @@ public class BrokenBuildHook extends AbstractRejectHook implements PreReceiveRep
         }
     }
 
-    private Page<Changeset> getChangesets(Repository repository, String fromHash) {
-        return historyService.getChangesets(repository, fromHash, null, new PageRequestImpl(0, COMMITS_TO_INSPECT));
+    private Page<Commit> getCommits(Repository repository, String fromHash) {
+        return commitService.getCommits(
+                new CommitsRequest.Builder(repository, fromHash).build(),
+                new PageRequestImpl(0, COMMITS_TO_INSPECT));
     }
 
     private boolean isFix(Repository repository, String head, String commit) {
-        Changeset mostRecentPushedCommit = historyService.getChangeset(repository, head);
-        return mostRecentPushedCommit.getMessage().contains("fixes " + commit);
+        Commit mostRecentPushedCommit = commitService.getCommit(new CommitRequest.Builder(repository, head).build());
+        String commitMessage = mostRecentPushedCommit.getMessage();
+        return commitMessage != null && commitMessage.contains("fixes " + commit);
     }
 
     private void printPushingCommitWithFailedStatusMsg(HookResponse hookResponse, String toHash) {
@@ -91,7 +97,7 @@ public class BrokenBuildHook extends AbstractRejectHook implements PreReceiveRep
     }
 
     private RefChange getPushToDefaultBranch(RepositoryHookContext repositoryHookContext, Collection<RefChange> refChanges) {
-        Branch defaultBranch = repositoryMetadataService.getDefaultBranch(repositoryHookContext.getRepository());
+        Branch defaultBranch = refService.getDefaultBranch(repositoryHookContext.getRepository());
         for (RefChange refChange : refChanges) {
             if (refChange.getRefId().equals(defaultBranch.getId())) {
                 return refChange;
